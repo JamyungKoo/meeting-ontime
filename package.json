@@ -1,0 +1,14 @@
+{
+  "name": "meeting-ontime",
+  "version": "1.0.0",
+  "description": "Google Calendar 미팅을 시작 직전에 실제 Chrome으로 열어 카메라/마이크 꺼진 채 참여시켜주는 로컬 도구",
+  "type": "module",
+  "scripts": {
+    "start": "node src/cli.js run",
+    "list": "node src/cli.js list"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-ical": "^0.27.1"
+  }
+}

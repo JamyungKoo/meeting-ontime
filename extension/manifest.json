@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "meeting-ontime helper",
+  "version": "1.1.0",
+  "description": "meeting-ontime이 연 Meet 탭(?ontime=1)에서 카메라/마이크를 끄고 자동 참여합니다.",
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

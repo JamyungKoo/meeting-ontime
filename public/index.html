@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>meeting-ontime</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1a1d21; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #2563eb; --accent-bg: #eff6ff;
+    --green: #16a34a; --green-bg: #f0fdf4; --red: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --card: #1a1f26; --text: #e8eaed; --muted: #9aa2ad;
+      --line: #2a3038; --accent: #60a5fa; --accent-bg: #1c2a42;
+      --green: #4ade80; --green-bg: #14291c; --red: #f87171;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 24px 16px 60px;
+  }
+  h1 { font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 28px 0 10px; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .time { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 74px; }
+  .info { flex: 1; min-width: 160px; }
+  .title { font-weight: 600; }
+  .link { font-size: 12px; color: var(--muted); text-decoration: none; }
+  .link:hover { color: var(--accent); }
+  .badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600;
+    background: var(--accent-bg); color: var(--accent);
+  }
+  .badge.done { background: var(--green-bg); color: var(--green); }
+  .badge.off { background: var(--line); color: var(--muted); }
+  .day-head { font-size: 13px; font-weight: 700; margin: 18px 0 8px; color: var(--text); }
+  .pause-banner {
+    background: var(--accent-bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 14px; font-size: 13px; margin: 12px 0;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    border: 0; background: transparent; color: var(--muted); padding: 6px 12px;
+    font-size: 12px; cursor: pointer; font-weight: 600;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .seg button.on.off-mode { background: var(--line); color: var(--text); }
+  button.small {
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+  }
+  button.small:hover { border-color: var(--accent); color: var(--accent); }
+  button.danger:hover { border-color: var(--red); color: var(--red); }
+  button.primary {
+    border: 0; background: var(--accent); color: #fff; border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  button.small { white-space: nowrap; }
+  button:disabled { opacity: .5; cursor: default; }
+  .empty { color: var(--muted); font-size: 13px; padding: 12px 4px; }
+  .error {
+    background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;
+    border-radius: 10px; padding: 10px 14px; font-size: 13px; margin: 12px 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    .error { background: #2b1618; border-color: #7f1d1d; color: #fca5a5; }
+  }
+  form.add { display: flex; gap: 8px; flex-wrap: wrap; }
+  form.add input {
+    background: var(--card); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  }
+  form.add input[name=url] { flex: 1; min-width: 220px; }
+  .spin { display: inline-block; animation: r 1s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  .muted-card { opacity: .55; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>📅 meeting-ontime</h1>
+      <div class="sub" id="status">불러오는 중...</div>
+    </div>
+    <button class="primary" id="refreshBtn" onclick="refresh()">캘린더 새로고침</button>
+  </div>
+  <div id="errorBox"></div>
+
+  <h2>오늘 미팅</h2>
+  <div id="meetingsToday"></div>
+
+  <h2>매번 자동 참석으로 등록된 미팅</h2>
+  <div id="recurring"></div>
+
+  <h2>휴가 / 자리 비움</h2>
+  <div class="card">
+    <form class="add" id="pauseForm" onsubmit="return setPauseRange(event)">
+      <input name="from" type="date" required>
+      <span style="align-self:center">~</span>
+      <input name="to" type="date" required>
+      <button class="primary" type="submit">이 기간 전체 자동참여 끄기</button>
+    </form>
+    <span class="empty" id="pauseInfo" style="display:none">휴가 모드가 켜져 있습니다. 상단 배너에서 해제할 수 있습니다.</span>
+  </div>
+
+  <h2>이번 주 미팅 (내일부터)</h2>
+  <div id="meetingsWeek"></div>
+
+  <h2>1회성 등록</h2>
+  <div id="once"></div>
+
+  <h2>수동 추가 (1회성)</h2>
+  <div class="card">
+    <form class="add" onsubmit="return addManual(event)">
+      <input name="date" type="date">
+      <input name="time" type="time" required>
+      <input name="url" type="url" placeholder="https://meet.google.com/xxx-xxxx-xxx" required>
+      <input name="title" type="text" placeholder="제목 (선택)">
+      <button class="primary" type="submit">추가</button>
+    </form>
+  </div>
+
+<script>
+let S = null;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtTime = (iso) => new Date(iso).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
+
+async function post(path, body) {
+  await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+  await load();
+}
+
+async function load() {
+  const r = await fetch('/api/state');
+  S = await r.json();
+  render();
+}
+
+function render() {
+  const st = document.getElementById('status');
+  const lead = Math.round(S.env.LEAD_SECONDS / 60 * 10) / 10;
+  st.innerHTML = (S.syncing ? '<span class="spin">⏳</span> 캘린더 동기화 중... ' :
+    (S.lastSyncAt ? `마지막 동기화 ${fmtTime(S.lastSyncAt)} · ` : '아직 동기화 전 · ')) +
+    `시작 ${esc(S.env.LEAD_SECONDS)}초 전 실제 Chrome으로 열기 · ` +
+    `자동참여 ${S.env.AUTO_JOIN ? 'ON' : 'OFF'} · 카메라/마이크 OFF (확장 필요)`;
+  document.getElementById('refreshBtn').disabled = S.syncing;
+
+  let notice = '';
+  if (S.lastError) {
+    notice += `<div class="error">동기화 실패: ${esc(S.lastError)}<br>새로고침을 누르면 다시 시도합니다.</div>`;
+  }
+  if (!S.env.ICS) {
+    notice += `<div class="error">⚠️ <b>.env에 ICS_URL이 필요합니다.</b><br>
+      Google Calendar → ⚙️ 설정 → 내 캘린더 선택 → 캘린더 통합 → <b>"iCal 형식의 비공개 주소"</b> 복사 → .env의 ICS_URL에 붙여넣기 → 재시작</div>`;
+  }
+  if (S.rules.pause) {
+    notice += `<div class="pause-banner">🏖️ 휴가 모드: <b>${esc(S.rules.pause.from)} ~ ${esc(S.rules.pause.to)}</b>
+      기간에는 아무 미팅에도 참여하지 않습니다.
+      <button class="small" onclick="clearPause()">해제</button></div>`;
+  }
+  document.getElementById('errorBox').innerHTML = notice;
+
+  // 휴가 폼 표시 상태
+  document.getElementById('pauseForm').style.display = S.rules.pause ? 'none' : 'flex';
+  document.getElementById('pauseInfo').style.display = S.rules.pause ? 'inline' : 'none';
+
+  // 미팅 카드 렌더링 (오늘 섹션 / 이번 주 섹션 공용)
+  const modes = [['recurring','매번'],['once','이날만'],['off','안함']];
+  const days = ['일','월','화','수','목','금','토'];
+
+  const meetingCard = (m, i, isToday) => {
+    const inactive = m.skipped || m.paused;
+    let badge = '';
+    if (m.joined) badge = '<span class="badge done">접속 완료</span>';
+    else if (m.paused && m.mode !== 'off') badge = '<span class="badge off">휴가</span>';
+    else if (m.skipped && m.mode !== 'off') badge = '<span class="badge off">건너뜀</span>';
+    else if (m.mode !== 'off') badge = '<span class="badge">접속 예정</span>';
+    return `
+    <div class="card${inactive && m.mode !== 'off' ? ' muted-card' : ''}">
+      <span class="time">${fmtTime(m.start)}</span>
+      <div class="info">
+        <div class="title">${esc(m.title)} ${m.recurring ? '🔁' : ''} ${badge}</div>
+        <a class="link" href="${esc(m.url)}" target="_blank">${esc(m.url)}</a>
+      </div>
+      <span class="seg">${modes.map(([v, label]) =>
+        `<button class="${m.mode===v ? 'on' + (v==='off'?' off-mode':'') : ''}"
+          onclick="setMode(${i},'${v}')">${label}</button>`).join('')}
+      </span>
+      ${m.mode !== 'off' && !m.paused ?
+        `<button class="small" onclick="toggleSkip(${i},${!m.skipped})">${m.skipped ? '건너뛰기 해제' : '이날 건너뛰기'}</button>` : ''}
+      ${isToday ? `<button class="small" onclick="joinNow(${i})">지금 접속</button>` : ''}
+    </div>`;
+  };
+
+  const noLinkCard = (m) => `
+    <div class="card muted-card">
+      <span class="time">${fmtTime(m.start)}</span>
+      <div class="info"><div class="title">${esc(m.title)}</div>
+        <span class="link">Meet 링크 없음 — 자동화 불가</span></div>
+    </div>`;
+
+  const dateOf = (iso) => {
+    const d = new Date(iso), p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  };
+
+  // 오늘 미팅
+  let todayHtml = S.meetings
+    .map((m, i) => [m, i]).filter(([m]) => m.date === S.today)
+    .map(([m, i]) => meetingCard(m, i, true)).join('');
+  todayHtml += (S.noLink||[]).filter(m => dateOf(m.start) === S.today).map(noLinkCard).join('');
+  document.getElementById('meetingsToday').innerHTML =
+    todayHtml || '<div class="empty">오늘은 미팅이 없습니다.</div>';
+
+  // 이번 주 미팅 (내일부터)
+  const byDate = {};
+  S.meetings.forEach((m, i) => { if (m.date > S.today) (byDate[m.date] ||= []).push([m, i]); });
+  (S.noLink||[]).forEach(m => { const dk = dateOf(m.start); if (dk > S.today) (byDate[dk] ||= []).push([m, null]); });
+
+  let weekHtml = '';
+  for (const date of Object.keys(byDate).sort()) {
+    const d = new Date(date + 'T00:00:00');
+    weekHtml += `<div class="day-head">${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})</div>`;
+    weekHtml += byDate[date]
+      .sort((a, b) => new Date(a[0].start) - new Date(b[0].start))
+      .map(([m, i]) => (i === null ? noLinkCard(m) : meetingCard(m, i, false)))
+      .join('');
+  }
+  document.getElementById('meetingsWeek').innerHTML =
+    weekHtml || '<div class="empty">이번 주 남은 미팅이 없습니다.</div>';
+
+  // 반복 등록 목록
+  document.getElementById('recurring').innerHTML = S.rules.recurring.map(r => `
+    <div class="card">
+      <div class="info"><div class="title">${esc(r.title)}</div>
+        <span class="link">${esc(r.key)} — 캘린더에 뜨는 날마다 자동 접속</span></div>
+      <button class="small danger" onclick="removeRule('recurring','${esc(r.key)}')">삭제</button>
+    </div>`).join('') || '<div class="empty">없음 — 위 미팅에서 [매번]을 선택하면 등록됩니다.</div>';
+
+  // 1회성 목록
+  document.getElementById('once').innerHTML = S.rules.once.map(o => `
+    <div class="card">
+      <span class="time">${fmtTime(o.start)}</span>
+      <div class="info"><div class="title">${esc(o.title)}</div>
+        <span class="link">${esc(o.url)}</span></div>
+      <button class="small danger" onclick="removeRule('once','${esc(o.id)}')">삭제</button>
+    </div>`).join('') || '<div class="empty">없음</div>';
+}
+
+const setMode = (i, mode) => post('/api/mode', {meeting: S.meetings[i], mode});
+const joinNow = (i) => post('/api/join', {meeting: S.meetings[i]});
+const toggleSkip = (i, skipped) => post('/api/skip', {meeting: S.meetings[i], skipped});
+const removeRule = (type, key) => post('/api/rules/remove', {type, key});
+const refresh = () => post('/api/refresh');
+const clearPause = () => post('/api/pause', {range: null});
+
+function setPauseRange(e) {
+  e.preventDefault();
+  const f = e.target;
+  post('/api/pause', {range: {from: f.from.value, to: f.to.value}});
+  return false;
+}
+
+function addManual(e) {
+  e.preventDefault();
+  const f = e.target;
+  post('/api/add', {date: f.date.value || undefined, time: f.time.value, url: f.url.value, title: f.title.value});
+  f.reset();
+  return false;
+}
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
