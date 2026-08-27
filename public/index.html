@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>meeting on time</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='28' fill='%232563eb'/%3E%3Cg stroke='%23ffffff' stroke-opacity='0.55' stroke-width='10.5' stroke-linecap='round' fill='none'%3E%3Cpath d='M38 50 V116'/%3E%3Cpath d='M38 90 H52'/%3E%3C/g%3E%3Ccircle cx='64' cy='27.5' r='14.2' fill='%23ffffff'/%3E%3Cg stroke='%23ffffff' stroke-width='15' stroke-linecap='round' stroke-linejoin='round' fill='none'%3E%3Cpath d='M64 48.5 V85 H97 V116'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:,"><!-- 실제 파비콘은 헤더 인라인 아이콘에서 파생 (아래 스크립트) -->
 <style>
   :root {
     --bg: #f5f5f7; --card: #ffffff; --text: #1d1d1f; --muted: #86868b;
@@ -232,7 +232,12 @@ const fmtWhen = (iso) => {
 };
 
 async function post(path, body) {
-  await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { msg = (await r.json()).error || msg; } catch {}
+    alert(`요청 실패: ${msg}`);
+  }
   await load();
 }
 
@@ -252,8 +257,9 @@ function render() {
     `자동참여 ${S.env.AUTO_JOIN ? 'ON' : 'OFF'} · 카메라/마이크 OFF`;
   document.getElementById('refreshBtn').disabled = S.syncing;
 
-  // 입장 시점 프리셋
+  // 입장 시점 프리셋 (.env의 비프리셋 값이면 현재 값도 선택지로 노출 — 컨트롤이 빈 상태로 안 보이게)
   const LEADS = [[0,'정각'],[30,'30초 전'],[60,'1분 전'],[120,'2분 전']];
+  if (!LEADS.some(([v]) => v === S.leadSeconds)) LEADS.push([S.leadSeconds, leadLabel]);
   document.getElementById('leadSeg').innerHTML = LEADS.map(([v, label]) =>
     `<button class="${S.leadSeconds === v ? 'on accent' : ''}" onclick="setLead(${v})">${label}</button>`).join('');
 
@@ -285,8 +291,12 @@ function render() {
     return on ? '<span class="badge">자동 입장</span>' : '';
   };
   const mutedClass = (m) => (m.skipped || m.paused) && m.mode !== 'off' ? ' muted-row' : '';
+  // 등록된(자동 입장) 미팅에만 건너뛰기가 의미 있다 — off 상태에 skip을 쓰면 무효 항목만 남는다
+  const skippable = (m) => m.mode !== 'off' && !m.paused;
+  // RRULE 이벤트뿐 아니라, 반복 규칙으로 등록된(구버전 rules 포함) 미팅도 반복으로 취급
+  const isRecurring = (m) => m.recurring || m.mode === 'recurring';
 
-  // 오늘 미팅: 지금 접속 / 건너뛰기 두 버튼만
+  // 오늘 미팅: 지금 접속 / (등록된 경우) 건너뛰기
   const todayRow = (m, i) => `
     <div class="row${mutedClass(m)}">
       <span class="time">${fmtTime(m.start)}</span>
@@ -295,13 +305,15 @@ function render() {
         <a class="link" href="${esc(m.url)}" target="_blank">${esc(m.url)}</a>
       </div>
       <button class="small" onclick="joinNow(${i})">지금 접속</button>
-      <button class="small${m.skipped ? '' : ' danger'}" onclick="toggleSkip(${i},${!m.skipped})">${m.skipped ? '건너뛰기 해제' : '건너뛰기'}</button>
+      ${skippable(m)
+        ? `<button class="small${m.skipped ? '' : ' danger'}" onclick="toggleSkip(${i},${!m.skipped})">${m.skipped ? '건너뛰기 해제' : '건너뛰기'}</button>`
+        : ''}
     </div>`;
 
   // 이번 주 미팅 (오늘부터): 반복은 [건너뛰기|항상|1번|해제], 단발은 [1번|해제]
   const weekRow = (m, i) => {
-    const segDefs = m.recurring
-      ? [['skip','건너뛰기'], ['recurring','항상'], ['once','1번'], ['off','해제']]
+    const segDefs = isRecurring(m)
+      ? [...(skippable(m) ? [['skip','건너뛰기']] : []), ['recurring','항상'], ['once','1번'], ['off','해제']]
       : [['once','1번'], ['off','해제']];
     const seg = segDefs.map(([v, label]) => {
       if (v === 'skip') {
@@ -310,7 +322,7 @@ function render() {
       const cls = m.mode === v ? 'on' + (v === 'off' ? '' : ' accent') : '';
       return `<button class="${cls}" onclick="setMode(${i},'${v}')">${label}</button>`;
     }).join('');
-    const sub = m.recurring
+    const sub = isRecurring(m)
       ? '반복 시리즈 · 한 번 등록하면 이후 회차 자동 입장'
       : 'Google Meet · 이 일정에만 적용';
 
@@ -352,8 +364,8 @@ function render() {
     ...(S.noLink||[]).filter(m => dateOf(m.start) >= S.today).map(m => [m, null]),
   ];
   const renderRow = ([m, i]) => (i === null ? noLinkRow(m, true) : weekRow(m, i));
-  const recurringRows = week.filter(([m]) => m.recurring).sort(byStart);
-  const onceRows = week.filter(([m]) => !m.recurring).sort(byStart);
+  const recurringRows = week.filter(([m]) => isRecurring(m)).sort(byStart);
+  const onceRows = week.filter(([m]) => !isRecurring(m)).sort(byStart);
 
   let weekHtml = '';
   if (recurringRows.length) {
@@ -366,17 +378,18 @@ function render() {
     weekHtml || '<div class="group"><div class="empty">이번 주 남은 미팅이 없습니다.</div></div>';
 
   // 자동 입장 등록한 미팅 (매번 + 1회)
-  const regHtml = S.rules.recurring.map(r => `
+  // onclick에는 인덱스만 넘긴다 (key/id는 JS에서 조회 — 문자열 주입 차단)
+  const regHtml = S.rules.recurring.map((r, i) => `
     <div class="row">
       <div class="info"><div class="title">${esc(r.title)}</div>
         <span class="link">${esc(r.key)} — 캘린더에 뜨는 날마다 자동 입장</span></div>
-      <button class="small danger" onclick="removeRule('recurring','${esc(r.key)}')">삭제</button>
-    </div>`).join('') + S.rules.once.map(o => `
+      <button class="small danger" onclick="removeRuleAt('recurring',${i})">삭제</button>
+    </div>`).join('') + S.rules.once.map((o, i) => `
     <div class="row">
       <span class="when">${fmtWhen(o.start)}</span>
       <div class="info"><div class="title">${esc(o.title)} <span class="badge">1회</span></div>
         <span class="link">${esc(o.url)}</span></div>
-      <button class="small danger" onclick="removeRule('once','${esc(o.id)}')">삭제</button>
+      <button class="small danger" onclick="removeRuleAt('once',${i})">삭제</button>
     </div>`).join('');
   document.getElementById('registered').innerHTML =
     regHtml || '<div class="empty">없음 — 이번 주 미팅에서 [항상] 또는 [1번]을 선택하면 등록됩니다.</div>';
@@ -385,7 +398,10 @@ function render() {
 const setMode = (i, mode) => post('/api/mode', {meeting: S.meetings[i], mode});
 const joinNow = (i) => post('/api/join', {meeting: S.meetings[i]});
 const toggleSkip = (i, skipped) => post('/api/skip', {meeting: S.meetings[i], skipped});
-const removeRule = (type, key) => post('/api/rules/remove', {type, key});
+const removeRuleAt = (type, i) => {
+  const key = type === 'recurring' ? S.rules.recurring[i]?.key : S.rules.once[i]?.id;
+  if (key != null) post('/api/rules/remove', {type, key});
+};
 const refresh = () => post('/api/refresh');
 const clearPause = () => post('/api/pause', {range: null});
 const setLead = (v) => post('/api/settings', {leadSeconds: v});
@@ -421,6 +437,13 @@ function addManual(e) {
   f.reset();
   return false;
 }
+
+// 파비콘을 헤더 인라인 아이콘에서 파생 (아이콘 원본을 한 곳으로 유지)
+(() => {
+  const svg = document.querySelector('.appicon');
+  const link = document.querySelector('link[rel=icon]');
+  if (svg && link) link.href = 'data:image/svg+xml,' + encodeURIComponent(svg.outerHTML);
+})();
 
 load();
 setInterval(load, 5000);

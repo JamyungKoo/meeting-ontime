@@ -221,12 +221,12 @@ export function toggleSkip(meeting, skipped) {
 
 /** 입장 시점 변경 (0 = 정각). rules.json에 저장되어 재시작 없이 즉시 반영 */
 export function setLeadSeconds(sec) {
-  const n = Number(sec);
-  if (!Number.isInteger(n) || n < 0 || n > 600) {
+  // Number(null)===0 등 강제변환 함정 방지: 실제 number만 허용
+  if (typeof sec !== 'number' || !Number.isInteger(sec) || sec < 0 || sec > 600) {
     throw new Error('leadSeconds는 0~600 사이 정수여야 합니다');
   }
   const rules = loadRules();
-  rules.settings = { ...rules.settings, leadSeconds: n };
+  rules.settings = { ...rules.settings, leadSeconds: sec };
   saveRules(rules);
 }
 
@@ -238,8 +238,12 @@ export function setPause(range) {
     if (!re.test(range.from) || !re.test(range.to)) {
       throw new Error('형식은 YYYY-MM-DD 또는 YYYY-MM-DDTHH:mm 이어야 합니다');
     }
-    if (range.from > range.to) throw new Error('시작이 종료보다 늦을 수 없습니다');
-    rules.pause = { from: range.from, to: range.to, memo: range.memo || '' };
+    // inPause와 동일하게 확장해 비교 (날짜만이면 from=00:00, to=23:59) — 문자열 비교의 형식 혼합 오류 방지
+    const ms = (s, end) => new Date(s.length === 10 ? `${s}T${end ? '23:59' : '00:00'}` : s).getTime();
+    if (ms(range.from, false) > ms(range.to, true)) {
+      throw new Error('시작이 종료보다 늦을 수 없습니다');
+    }
+    rules.pause = { from: range.from, to: range.to };
   } else {
     rules.pause = null;
   }

@@ -54,7 +54,7 @@ README.md 읽고 셋업해줘
 | 키 | 기본값 | 설명 |
 |---|---|---|
 | `ICS_URL` | (필수) | 캘린더 iCal 비공개 주소 |
-| `LEAD_SECONDS` | `60` | 미팅 시작 몇 초 전에 열지 |
+| `LEAD_SECONDS` | `60` | 미팅 시작 몇 초 전에 열지. **관리 페이지의 '입장 시점'을 고르면 그 값이 우선**하고 이 값은 폴백이 된다 (되돌리려면 `rules.json`의 `settings.leadSeconds` 삭제) |
 | `AUTO_JOIN` | `true` | `false`면 참여 버튼은 안 누르고 대기 화면까지만 |
 | `PORT` | `5959` | 관리 페이지 포트 |
 
