@@ -52,24 +52,32 @@ export function meetingMode(meeting, rules = loadRules()) {
   return 'off';
 }
 
+/** 입장 시점(초 전). 대시보드 설정이 있으면 그 값, 없으면 .env의 LEAD_SECONDS */
+export function effectiveLeadSeconds(rules = loadRules()) {
+  const v = rules.settings?.leadSeconds;
+  return Number.isFinite(v) ? v : env.LEAD_SECONDS;
+}
+
 export function isSkipped(meeting, rules = loadRules()) {
   const dk = dateKey(new Date(meeting.start));
   return rules.skips.some((s) => s.url === meeting.url && s.date === dk);
 }
 
-export function inPause(date, pause) {
-  return Boolean(pause && pause.from && pause.to && date >= pause.from && date <= pause.to);
+/**
+ * 휴가/자리비움 범위. 날짜만 주면 하루 전체(00:00~23:59), 시간까지 주면 그 시각 기준.
+ * 미팅의 "시작 시각"이 범위 안이면 해당 회차는 자동 입장하지 않는다.
+ */
+export function inPause(startIso, pause) {
+  if (!pause?.from || !pause?.to) return false;
+  const from = new Date(pause.from.length === 10 ? `${pause.from}T00:00` : pause.from).getTime();
+  const to = new Date(pause.to.length === 10 ? `${pause.to}T23:59` : pause.to).getTime();
+  const t = new Date(startIso).getTime();
+  return t >= from && t <= to;
 }
 
 function resolveSchedule() {
   const rules = loadRules();
   const today = dateKey();
-
-  // 휴가 기간에는 아무것도 접속하지 않음
-  if (inPause(today, rules.pause)) {
-    state.schedule = [];
-    return;
-  }
 
   const out = [];
   const seenUrls = new Set();
@@ -79,6 +87,7 @@ function resolveSchedule() {
     const mode = meetingMode(m, rules);
     if (mode === 'off' || !m.url) continue;
     if (isSkipped(m, rules)) continue;
+    if (inPause(m.start, rules.pause)) continue;
     out.push({ ...m, source: mode === 'recurring' ? '반복' : '1회' });
     seenUrls.add(m.url);
   }
@@ -88,6 +97,7 @@ function resolveSchedule() {
     if (dateKey(new Date(o.start)) !== today) continue;
     if (o.url && seenUrls.has(o.url)) continue;
     if (isSkipped(o, rules)) continue;
+    if (inPause(o.start, rules.pause)) continue;
     out.push({ ...o, source: '1회' });
   }
 
@@ -147,10 +157,10 @@ export function getState() {
     lastSyncAt: state.lastSyncAt,
     lastError: state.lastError,
     env: {
-      LEAD_SECONDS: env.LEAD_SECONDS,
       AUTO_JOIN: env.AUTO_JOIN,
       ICS: Boolean(env.ICS_URL),
     },
+    leadSeconds: effectiveLeadSeconds(rules),
     today: dateKey(),
     meetings: state.meetings.map((m) => {
       const dk = dateKey(new Date(m.start));
@@ -159,7 +169,7 @@ export function getState() {
         date: dk,
         mode: meetingMode(m, rules),
         skipped: isSkipped(m, rules),
-        paused: inPause(dk, rules.pause),
+        paused: inPause(m.start, rules.pause),
         joined: dk === dateKey() && wasJoined(m),
       };
     }),
@@ -209,14 +219,27 @@ export function toggleSkip(meeting, skipped) {
   resolveSchedule();
 }
 
-/** 휴가 기간 설정 (null이면 해제) — 기간 내 모든 자동 참여 중지 */
+/** 입장 시점 변경 (0 = 정각). rules.json에 저장되어 재시작 없이 즉시 반영 */
+export function setLeadSeconds(sec) {
+  const n = Number(sec);
+  if (!Number.isInteger(n) || n < 0 || n > 600) {
+    throw new Error('leadSeconds는 0~600 사이 정수여야 합니다');
+  }
+  const rules = loadRules();
+  rules.settings = { ...rules.settings, leadSeconds: n };
+  saveRules(rules);
+}
+
+/** 휴가/자리비움 설정 (null이면 해제) — 범위 내 시작하는 미팅은 자동 참여 중지 */
 export function setPause(range) {
   const rules = loadRules();
   if (range && range.from && range.to) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(range.from) || !/^\d{4}-\d{2}-\d{2}$/.test(range.to)) {
-      throw new Error('날짜 형식은 YYYY-MM-DD 이어야 합니다');
+    const re = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/;
+    if (!re.test(range.from) || !re.test(range.to)) {
+      throw new Error('형식은 YYYY-MM-DD 또는 YYYY-MM-DDTHH:mm 이어야 합니다');
     }
-    rules.pause = { from: range.from, to: range.to };
+    if (range.from > range.to) throw new Error('시작이 종료보다 늦을 수 없습니다');
+    rules.pause = { from: range.from, to: range.to, memo: range.memo || '' };
   } else {
     rules.pause = null;
   }
@@ -262,7 +285,7 @@ export async function joinNow(meeting) {
   if (meeting.start) {
     const start = new Date(meeting.start).getTime();
     const now = Date.now();
-    if (now >= start - env.LEAD_SECONDS * 1000 && now <= start + STALE_AFTER_MS) {
+    if (now >= start - effectiveLeadSeconds() * 1000 && now <= start + STALE_AFTER_MS) {
       markJoined(meeting);
     }
   }
@@ -292,11 +315,12 @@ async function tick() {
   }
 
   const now = Date.now();
+  const leadMs = effectiveLeadSeconds() * 1000;
   for (const m of state.schedule) {
     if (wasJoined(m)) continue;
     const start = new Date(m.start).getTime();
 
-    if (now < start - env.LEAD_SECONDS * 1000) continue;
+    if (now < start - leadMs) continue;
     if (now > start + STALE_AFTER_MS) {
       markJoined(m); // 너무 늦어서 건너뜀 처리
       console.log(`건너뜀 (시작한 지 30분 초과): ${m.title}`);

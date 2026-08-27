@@ -14,6 +14,7 @@ export function dateKey(d = new Date()) {
  *   once:      특정 날짜 1회만 참석할 미팅.
  *   skips:     [{url, date}] — 등록된 미팅이라도 이 날짜의 회차는 건너뜀.
  *   pause:     {from, to} — 휴가 등으로 이 기간 전체 자동 참여 중지.
+ *   settings:  {leadSeconds} — 대시보드에서 바꾼 전역 설정. 없으면 .env 값 사용.
  */
 export function loadRules() {
   let raw = {};
@@ -25,6 +26,7 @@ export function loadRules() {
     once: raw.once || [],
     skips: raw.skips || [],
     pause: raw.pause || null,
+    settings: raw.settings || {},
   };
 }
 

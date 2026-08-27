@@ -3,6 +3,24 @@
   "name": "meeting-ontime helper",
   "version": "1.1.0",
   "description": "meeting-ontime이 연 Meet 탭(?ontime=1)에서 카메라/마이크를 끄고 자동 참여합니다.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "meeting-ontime 관리 페이지 열기"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],
