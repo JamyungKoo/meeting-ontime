@@ -7,7 +7,6 @@ import * as engine from './engine.js';
 
 const PORT = env.PORT;
 const INDEX_HTML = path.join(ROOT_DIR, 'public', 'index.html');
-const TEST_HTML = path.join(ROOT_DIR, 'public', 'test.html');
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -35,12 +34,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
       // 파일을 먼저 읽는다 — 없을 때 헤더 전송 전에 실패해야 catch가 에러를 응답할 수 있다
       const html = fs.readFileSync(INDEX_HTML);
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
-      return;
-    }
-    if (req.method === 'GET' && pathname === '/test') {
-      const html = fs.readFileSync(TEST_HTML);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
       return;
