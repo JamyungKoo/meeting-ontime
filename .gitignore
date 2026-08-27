@@ -4,3 +4,6 @@ rules.json
 state.json
 .claude/
 .server.log
+
+# 로컬 디자인 실험용 페이지 (/test) — 배포 대상 아님
+public/test.html
