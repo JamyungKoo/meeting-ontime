@@ -215,3 +215,43 @@ curl -s http://localhost:5959/api/state
 | `.env`의 `LEAD_SECONDS`를 바꿔도 안 먹힘 | 관리 페이지에서 입장 시점을 고른 적이 있으면 `rules.json`의 `settings.leadSeconds`가 우선 — 그 키를 지우면 `.env` 값으로 복귀 |
 | 확장 툴바 아이콘이 빈 페이지를 엶 | `.env`의 `PORT`를 바꿨는데 `extension/background.js`의 `DASHBOARD_PORT`가 그대로 |
 | 건너뛰기 버튼이 안 보임 | 자동 입장 등록이 안 된 미팅에는 표시되지 않음 (먼저 [항상]/[1번]으로 등록) |
+
+### PR 올리기 전 체크리스트
+
+실제로 이 저장소에서 났던 문제만 모은 목록입니다. **자신이 건드린 영역만** 확인하세요.
+
+**커밋 범위**
+- [ ] `/test` 라우트(`src/server.js`)와 `public/test.html`이 섞여 들어가지 않았는지
+      — 로컬 디자인 실험용이라 커밋 대상이 아니다 (`git diff --cached src/server.js`)
+
+**서버 (`src/server.js`)**
+- [ ] 파일을 응답할 때 `readFileSync`를 `writeHead`보다 **먼저** 호출했는지
+      — 순서가 바뀌면 파일이 없을 때 헤더를 이미 보낸 뒤라 catch도 에러 응답을 못 보내고,
+      요청이 응답 없이 멈춘 채 `unhandledRejection`이 발생한다
+- [ ] 새 엔드포인트가 던지는 검증 에러를 대시보드가 실제로 보여주는지
+      — `post()`가 `r.ok`를 확인하지 않으면 사용자에겐 "눌렀는데 아무 일도 안 남"이 된다
+
+**대시보드 (`public/index.html`)**
+- [ ] `onclick`에 캘린더에서 온 값(제목·UID·URL)을 문자열로 보간하지 않았는지
+      — `esc()`는 HTML 이스케이프라 JS 문자열 컨텍스트를 막지 못한다.
+      인덱스만 넘기고 핸들러 안에서 `S`를 조회하는 방식(`removeRuleAt`)을 따른다
+- [ ] 버튼/섹션 이름을 바꿨다면 위 사용법 표와 Step 6도 같이 고쳤는지
+
+**설정·데이터 (`.env`, `rules.json`)**
+- [ ] 설정을 추가했다면 `.env`와 `rules.json` 중 무엇이 우선인지 README와
+      `.env.example` 양쪽에 적었는지 — 모르면 "값을 바꿨는데 안 먹힌다"로 이어진다
+- [ ] `rules.json` 스키마를 바꿨다면 **기존 파일(구버전 키)로도** UI가 깨지지 않는지
+      — 예: 구버전 반복 규칙이 붙은 미팅에서 세그먼트가 아무것도 선택되지 않던 문제
+- [ ] 저장은 하는데 읽는 곳이 없는 필드를 남기지 않았는지
+
+**확장 (`extension/`)**
+- [ ] 포트·URL을 하드코딩했다면 `.env`의 `PORT`와 어긋날 수 있음을 문서에 적었는지
+- [ ] `extension/` 코드를 고쳤다면 `chrome://extensions`에서 새로고침(⟳)이 필요하다고 안내
+
+**최소 동작 확인**
+```bash
+npm start                                          # 에러 없이 부팅되는지
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5959/   # 200
+curl -s http://localhost:5959/api/state | head -c 200             # lastError가 null인지
+```
+- [ ] 관리 페이지에서 오늘 미팅 / 이번 주 미팅 / 등록 목록이 정상 렌더링되는지
