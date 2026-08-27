@@ -53,6 +53,11 @@ const server = http.createServer(async (req, res) => {
       engine.toggleSkip(meeting, skipped);
       return json(res, 200, { ok: true });
     }
+    if (req.method === 'POST' && pathname === '/api/settings') {
+      const { leadSeconds } = await readBody(req);
+      engine.setLeadSeconds(leadSeconds);
+      return json(res, 200, { ok: true });
+    }
     if (req.method === 'POST' && pathname === '/api/pause') {
       const { range } = await readBody(req);
       engine.setPause(range);

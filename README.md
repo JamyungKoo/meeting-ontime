@@ -107,11 +107,10 @@ npm install
 
 1. `cp .env.example .env`
 2. **[사용자 액션]** 사용자에게 다음 경로를 안내하고 주소를 받아오세요:
-   - https://calendar.google.com/calendar/r/settings 접속
-   - 왼쪽 "내 캘린더의 설정"에서 본인 캘린더 클릭
-   - **"캘린더 통합"(Integrate calendar)** 섹션으로 스크롤
-   - **"iCal 형식의 비공개 주소"** 복사 (⚠️ "공개 주소" 아님 —
-     올바른 형식: `.../ical/<이메일>/private-<32자토큰>/basic.ics`)
+   - 캘린더 → ⚙️ **Settings** → 왼쪽 **"내 캘린더의 설정"** → **본인 사용자 이름** 클릭
+   - **"iCal 형식의 비공개 주소"(Secret address in iCal format)** 복사
+     (⚠️ "공개 주소" 아님 — 올바른 형식: `.../ical/<이메일>/private-<토큰>/basic.ics`)
+   - 바로가기: https://calendar.google.com/calendar/r/settings
 3. 받은 주소를 `.env`의 `ICS_URL=`에 넣으세요.
 4. **검증**: `curl -s -o /dev/null -w "%{http_code}" "<ICS_URL>"` 이 `200`이어야 합니다.
    - `404`면 십중팔구 공개 주소(`/public/`)를 복사한 것 → 비공개 주소로 다시 안내

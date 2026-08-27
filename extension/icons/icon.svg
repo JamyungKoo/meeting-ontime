@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- 착석 픽토그램 — icon*.png의 원본 -->
+  <rect width="128" height="128" rx="28" fill="#2563eb"/>
+  <!-- 의자 (등받이 + 좌면) -->
+  <g stroke="#ffffff" stroke-opacity="0.55" stroke-width="10.5" stroke-linecap="round" fill="none">
+    <path d="M38 50 V116"/>
+    <path d="M38 90 H52"/>
+  </g>
+  <!-- 앉은 사람 -->
+  <circle cx="64" cy="27.5" r="14.2" fill="#ffffff"/>
+  <g stroke="#ffffff" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M64 48.5 V85 H97 V116"/>
+  </g>
+</svg>

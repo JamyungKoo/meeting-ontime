@@ -3,3 +3,4 @@ node_modules/
 rules.json
 state.json
 .claude/
+.server.log
